@@ -1,0 +1,175 @@
+version: "1.0"
+
+metadata:
+  name: llm-observability-and-cost
+  owner: platform-team
+  last_updated: "2026-01-07"
+
+# ============================================================
+# METRICS CONFIGURATION
+# ============================================================
+metrics:
+  enabled: true
+
+  prometheus:
+    enabled: true
+    endpoint: /metrics
+
+  labels:
+    allow:
+      - provider
+      - model
+      - prompt_id
+      - env
+      - status
+    deny:
+      - user_id
+      - request_id
+      - prompt_version
+
+  latency:
+    histogram_buckets_ms:
+      - 50
+      - 100
+      - 250
+      - 500
+      - 1000
+      - 2000
+      - 5000
+      - 10000
+
+# ============================================================
+# DISTRIBUTED TRACING
+# ============================================================
+tracing:
+  enabled: true
+
+  provider: opentelemetry
+
+  sampling:
+    strategy: probabilistic
+    rate: 0.1   # 10% default sampling
+
+  attributes:
+    include:
+      - provider
+      - model
+      - prompt_id
+      - env
+
+# ============================================================
+# COST TRACKING
+# ============================================================
+cost_tracking:
+  enabled: true
+  currency: USD
+
+  rounding:
+    precision: 6
+    mode: round_half_up
+
+  default:
+    input_cost_per_1k_tokens: 0.0005
+    output_cost_per_1k_tokens: 0.0015
+
+  providers:
+
+    openai:
+      pricing_source: static
+      models:
+        gpt-4o:
+          input_cost_per_1k_tokens: 0.005
+          output_cost_per_1k_tokens: 0.015
+        gpt-4o-mini:
+          input_cost_per_1k_tokens: 0.00015
+          output_cost_per_1k_tokens: 0.0006
+
+    gemini:
+      pricing_source: static
+      models:
+        gemini-1.5-pro:
+          input_cost_per_1k_tokens: 0.007
+          output_cost_per_1k_tokens: 0.021
+        gemini-1.5-flash:
+          input_cost_per_1k_tokens: 0.00035
+          output_cost_per_1k_tokens: 0.00105
+
+    anthropic:
+      alias: claude
+      pricing_source: static
+      models:
+        claude-3-opus:
+          input_cost_per_1k_tokens: 0.015
+          output_cost_per_1k_tokens: 0.075
+        claude-3-sonnet:
+          input_cost_per_1k_tokens: 0.003
+          output_cost_per_1k_tokens: 0.015
+        claude-3-haiku:
+          input_cost_per_1k_tokens: 0.00025
+          output_cost_per_1k_tokens: 0.00125
+
+    deepseek:
+      pricing_source: static
+      models:
+        deepseek-chat:
+          input_cost_per_1k_tokens: 0.0002
+          output_cost_per_1k_tokens: 0.0008
+        deepseek-coder:
+          input_cost_per_1k_tokens: 0.0002
+          output_cost_per_1k_tokens: 0.0008
+
+    local:
+      pricing_source: estimated
+      strategy: infrastructure_amortized
+      defaults:
+        input_cost_per_1k_tokens: 0.0
+        output_cost_per_1k_tokens: 0.0
+      estimation:
+        gpu_hourly_cost_usd: 1.5
+        avg_tokens_per_second: 120
+        amortization_factor: 0.85
+
+# ============================================================
+# METADATA PERSISTENCE
+# ============================================================
+persistence:
+  enabled: true
+  async: true
+
+  fields:
+    - timestamp
+    - request_id_hash
+    - provider
+    - model
+    - prompt_id
+    - env
+    - latency_ms
+    - tokens_in
+    - tokens_out
+    - estimated_cost
+    - status
+    - error_code
+
+  retention_days: 30
+
+# ============================================================
+# FAILURE HANDLING
+# ============================================================
+failure_handling:
+  on_metrics_error: ignore
+  on_tracing_error: ignore
+  on_persistence_error: log_only
+
+# ============================================================
+# ENVIRONMENT OVERRIDES
+# ============================================================
+environments:
+  dev:
+    tracing:
+      sampling:
+        rate: 1.0
+
+  prod:
+    tracing:
+      sampling:
+        rate: 0.05

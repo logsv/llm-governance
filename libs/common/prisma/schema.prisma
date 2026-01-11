@@ -51,3 +51,36 @@ model PromptEnvBinding {
 
   @@unique([promptId, env])
 }
+
+model RequestLog {
+  id          String   @id @default(uuid())
+  requestId   String   @unique
+  timestamp   DateTime @default(now())
+  
+  // Context
+  env         String
+  provider    String
+  model       String
+  
+  // Attribution
+  promptId    String?
+  promptVersion String?
+  
+  // Metrics
+  latencyMs   Int
+  tokensIn    Int
+  tokensOut   Int
+  costUsd     Float
+  
+  // Status
+  status      String   // "success", "error"
+  errorCode   String?
+  errorMessage String?
+  
+  // Metadata (JSONB)
+  metadata    Json?    // Client metadata, user_id, etc.
+
+  @@index([env, timestamp])
+  @@index([promptId])
+  @@index([requestId])
+}

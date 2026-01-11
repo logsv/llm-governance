@@ -1,8 +1,12 @@
-// Observability logic
-export const track = (event) => {
-  console.log('Tracked event:', event);
-};
+import { metricsService } from './src/metrics.js';
+import { tracer, startSpan } from './src/tracing.js';
+import { persistenceService } from './src/persistence.js';
+import { calculateCost } from './src/cost.js';
 
-export default {
-  track,
+export {
+  metricsService,
+  tracer,
+  startSpan,
+  persistenceService,
+  calculateCost,
 };
