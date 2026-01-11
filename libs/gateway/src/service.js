@@ -2,6 +2,7 @@ import { OpenAIProvider } from './providers/openai.js';
 import { GeminiProvider } from './providers/gemini.js';
 import { HuggingFaceProvider } from './providers/huggingface.js';
 import { OllamaProvider } from './providers/ollama.js';
+import { LiteLLMProvider } from './providers/litellm.js';
 import { LLMRequestSchema, ValidationError } from '@llm-governance/common';
 import { promptService as defaultPromptService } from '@llm-governance/prompts';
 import { metricsService, persistenceService, calculateCost, tracer, startSpan } from '../../observability/index.js';
@@ -16,6 +17,7 @@ export class GatewayService {
     this.registerProvider('gemini', new GeminiProvider({}));
     this.registerProvider('huggingface', new HuggingFaceProvider({}));
     this.registerProvider('ollama', new OllamaProvider({}));
+    this.registerProvider('litellm', new LiteLLMProvider({}));
   }
 
   setGuardrails(engine) {
