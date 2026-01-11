@@ -57,6 +57,13 @@ const evalRegressionCounter = new prometheus.Counter({
   registers: [register],
 });
 
+const evalDisagreementCounter = new prometheus.Counter({
+  name: 'llm_evaluation_disagreements_total',
+  help: 'Total judge disagreements',
+  labelNames: ['dataset'],
+  registers: [register],
+});
+
 export class MetricsService {
   recordRequest({ env, provider, model, status, errorCode, latencyMs, tokensIn, tokensOut, cost }) {
     if (!config.enabled) return;
@@ -78,11 +85,14 @@ export class MetricsService {
     if (latencyMs) latencyHistogram.observe(labels, latencyMs / 1000);
   }
 
-  recordEvaluation({ dataset, status, isRegression }) {
+  recordEvaluation({ dataset, status, isRegression, disagreementCount }) {
     if (!config.enabled) return;
     evalRunCounter.inc({ dataset, status });
     if (isRegression) {
         evalRegressionCounter.inc({ dataset });
+    }
+    if (disagreementCount && disagreementCount > 0) {
+        evalDisagreementCounter.inc({ dataset }, disagreementCount);
     }
   }
 

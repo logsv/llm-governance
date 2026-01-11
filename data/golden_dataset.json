@@ -1,0 +1,110 @@
+{ 
+   "dataset_id": "customer_support_summarization_v1", 
+   "description": "Golden dataset for evaluating customer support issue summarization quality", 
+   "domain": "customer_support", 
+   "version": "1.0", 
+   "owner": "platform-team", 
+   "created_at": "2026-01-07", 
+   "guidelines": { 
+     "no_pii": true, 
+     "tone": "professional", 
+     "output_style": "concise_summary", 
+     "max_output_tokens": 150 
+   }, 
+   "samples": [ 
+     { 
+       "id": "sample-001", 
+       "input": { 
+         "text": "Customer reports that payment failed during checkout after entering OTP. Error code shown was TXN_402." 
+       }, 
+       "evaluation_criteria": { 
+         "relevance": true, 
+         "accuracy": true, 
+         "clarity": true, 
+         "no_hallucination": true 
+       }, 
+       "critical_dimensions": ["accuracy", "no_hallucination"] 
+     }, 
+     { 
+       "id": "sample-002", 
+       "input": { 
+         "text": "User states the mobile app crashes immediately after login on Android 13 devices." 
+       }, 
+       "evaluation_criteria": { 
+         "relevance": true, 
+         "accuracy": true, 
+         "clarity": true, 
+         "no_hallucination": true 
+       }, 
+       "critical_dimensions": ["accuracy"] 
+     }, 
+     { 
+       "id": "sample-003", 
+       "input": { 
+         "text": "Customer is asking whether international cards are supported for subscription payments." 
+       }, 
+       "evaluation_criteria": { 
+         "relevance": true, 
+         "accuracy": true, 
+         "clarity": true, 
+         "no_hallucination": true 
+       }, 
+       "critical_dimensions": ["accuracy"] 
+     }, 
+     { 
+       "id": "sample-004", 
+       "input": { 
+         "text": "Merchant reports delayed settlement for transactions processed over the weekend." 
+       }, 
+       "evaluation_criteria": { 
+         "relevance": true, 
+         "accuracy": true, 
+         "clarity": true, 
+         "no_hallucination": true 
+       }, 
+       "critical_dimensions": ["accuracy", "clarity"] 
+     }, 
+     { 
+       "id": "sample-005", 
+       "input": { 
+         "text": "User wants to know how to reset their account password after forgetting it." 
+       }, 
+       "evaluation_criteria": { 
+         "relevance": true, 
+         "accuracy": true, 
+         "clarity": true, 
+         "no_hallucination": true 
+       }, 
+       "critical_dimensions": ["accuracy"] 
+     } 
+   ], 
+   "scoring_rubric": { 
+     "scale": { 
+       "min": 1, 
+       "max": 5 
+     }, 
+     "dimensions": { 
+       "relevance": { 
+         "description": "Summary captures the core issue raised by the user", 
+         "weight": 0.25 
+       }, 
+       "accuracy": { 
+         "description": "Summary is factually correct and does not introduce incorrect details", 
+         "weight": 0.35 
+       }, 
+       "clarity": { 
+         "description": "Summary is clear, concise, and easy to understand", 
+         "weight": 0.25 
+       }, 
+       "no_hallucination": { 
+         "description": "Summary does not introduce information not present in the input", 
+         "weight": 0.15 
+       } 
+     } 
+   }, 
+   "regression_policy": { 
+     "overall_score_drop_percentage": 5, 
+     "critical_dimension_min_score": 3, 
+     "hallucination_max_allowed": 2 
+   } 
+ }

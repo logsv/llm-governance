@@ -2,6 +2,8 @@ import { Queue, Worker } from 'bullmq';
 import { prisma } from '@llm-governance/common';
 import { gatewayService } from '@llm-governance/gateway';
 import { judgeService } from './judge.js';
+import { metricsService } from '@llm-governance/observability';
+import { configLoader } from './config.js';
 
 const EVAL_QUEUE_NAME = 'evaluation-jobs';
 const connection = {
@@ -54,8 +56,11 @@ export class EvaluationRunner {
     
     // Config for candidate
     const candidateConfig = run.config || {}; 
+    const scoringConfig = configLoader.getScoringConfig();
 
     try {
+      let totalDisagreements = 0;
+
       for (const testCase of run.dataset.testCases) {
         // 1. Run Candidate
         const request = {
@@ -78,36 +83,31 @@ export class EvaluationRunner {
             error = err.message;
         }
 
-        // 2. Run Judge
-        // Skip judge if candidate failed completely? Or judge the error?
-        // Usually if candidate fails, score is 0.
-        
+        // 2. Run Judges
         let score = 0;
-        let judgeResult = {};
+        let judgeOutput = {};
         
         if (!error) {
             try {
-                // metadata usually contains expected_traits
-                const traits = testCase.metadata?.expected_traits || {};
+                // Support both evaluation_criteria (from user input) and expected_traits (legacy)
+                const traits = testCase.metadata?.evaluation_criteria || testCase.metadata?.expected_traits || {};
                 
-                // If expectedOutput exists in DB, include it in traits or separate field?
-                // The JudgeService currently takes (input, output, traits).
-                // We can merge expectedOutput into traits if needed, or update JudgeService.
-                // For now, sticking to traits.
-                
-                judgeResult = await judgeService.evaluate(
+                judgeOutput = await judgeService.evaluateWithJudges(
                     testCase.input,
                     candidateOutput,
                     traits
                 );
-                score = judgeResult.overall_score;
+                
+                score = judgeOutput.overall_score;
+                if (judgeOutput.disagreement) totalDisagreements++;
+
             } catch (err) {
                 console.error(`Judge failed for test case ${testCase.id}`, err);
-                judgeResult = { error: err.message };
+                judgeOutput = { error: err.message };
                 score = 0; // Fail
             }
         } else {
-             judgeResult = { error: 'Candidate generation failed' };
+            judgeOutput = { error: 'Candidate generation failed' };
         }
 
         // 3. Save Result
@@ -117,8 +117,8 @@ export class EvaluationRunner {
                 testCaseId: testCase.id,
                 output: candidateOutput,
                 score: score,
-                reasoning: judgeResult.reasoning || judgeResult.error,
-                metrics: judgeResult, // Store full breakdown
+                reasoning: judgeOutput.primary?.reasoning || judgeOutput.error,
+                metrics: judgeOutput, // Store full breakdown including secondary judges
             }
         });
         results.push(result);
@@ -141,14 +141,18 @@ export class EvaluationRunner {
 
           if (previousRun && previousRun.score !== null) {
               const delta = avgScore - previousRun.score;
-              // Threshold: 5% drop (0.25 on 5 point scale)
-              const isRegression = delta < -0.25; 
+              // Use configured threshold
+              const thresholdPercent = run.dataset.regressionPolicy?.overall_score_drop_percentage || scoringConfig.thresholds?.regression_percentage || 5;
+              const maxDrop = (thresholdPercent / 100) * 5; // e.g. 5% of 5 = 0.25
+              
+              const isRegression = delta < -maxDrop; 
               
               regressionInfo = {
                   baseline_run_id: previousRun.id,
                   baseline_score: previousRun.score,
                   delta: delta,
-                  is_regression: isRegression
+                  is_regression: isRegression,
+                  threshold_used: maxDrop
               };
           }
       } catch (err) {
@@ -164,7 +168,8 @@ export class EvaluationRunner {
               summary: {
                   total: results.length,
                   avg_score: avgScore,
-                  regression: regressionInfo
+                  regression: regressionInfo,
+                  disagreements: totalDisagreements
               }
           }
       });
@@ -173,7 +178,8 @@ export class EvaluationRunner {
       metricsService.recordEvaluation({
           dataset: run.dataset.name,
           status: 'completed',
-          isRegression: regressionInfo?.is_regression || false
+          isRegression: regressionInfo?.is_regression || false,
+          disagreementCount: totalDisagreements
       });
 
     } catch (err) {
@@ -198,7 +204,6 @@ export class EvaluationRunner {
   
   async close() {
       await this.queue.close();
-      if (this.worker) await this.worker.close();
   }
 }
 

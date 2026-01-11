@@ -5,16 +5,23 @@ const TestCaseSchema = z.object({
   id: z.string().optional(),
   input: z.record(z.any()),
   expected_output: z.string().optional(),
-  expected_traits: z.record(z.any()).optional(), // For rubric matching
+  expected_traits: z.record(z.any()).optional(), // Legacy support
+  evaluation_criteria: z.record(z.any()).optional(), // New standard
+  critical_dimensions: z.array(z.string()).optional(),
   metadata: z.record(z.any()).optional(),
 });
 
 const DatasetSchema = z.object({
   dataset_id: z.string(),
-  name: z.string().optional(), // Fallback to dataset_id
+  name: z.string().optional(),
   description: z.string().optional(),
+  domain: z.string().optional(),
   version: z.string(),
   owner: z.string().optional(),
+  created_at: z.string().optional(),
+  guidelines: z.record(z.any()).optional(),
+  scoring_rubric: z.record(z.any()).optional(),
+  regression_policy: z.record(z.any()).optional(),
   samples: z.array(TestCaseSchema),
 });
 
@@ -25,7 +32,17 @@ export class DatasetService {
       throw new Error(`Invalid dataset format: ${JSON.stringify(parsed.error.format())}`);
     }
 
-    const { dataset_id, description, samples } = parsed.data;
+    const { 
+        dataset_id, 
+        description, 
+        domain,
+        version,
+        owner,
+        guidelines,
+        scoring_rubric,
+        regression_policy,
+        samples 
+    } = parsed.data;
 
     // Transaction to ensure atomicity
     return await prisma.$transaction(async (tx) => {
@@ -34,90 +51,71 @@ export class DatasetService {
         where: { name: dataset_id },
         update: {
           description,
+          domain,
+          version,
+          owner,
+          guidelines: guidelines || undefined,
+          scoringRubric: scoring_rubric || undefined,
+          regressionPolicy: regression_policy || undefined,
         },
         create: {
           name: dataset_id,
           description,
+          domain,
+          version,
+          owner,
+          guidelines: guidelines || undefined,
+          scoringRubric: scoring_rubric || undefined,
+          regressionPolicy: regression_policy || undefined,
         },
       });
 
-      // Process Samples
-      // We can replace all or append. 
-      // "Immutable once published (new version instead)" implies we shouldn't change existing samples of a versioned dataset.
-      // But here we are just syncing. Let's wipe and recreate for simplicity or update if ID matches.
-      // Since samples have IDs in the JSON, let's try to upsert them.
+      // Delete existing test cases for this dataset version to ensure sync
+      await tx.testCase.deleteMany({
+          where: { datasetId: dataset.id }
+      });
 
+      // Insert new samples
       const results = [];
       for (const sample of samples) {
         // Construct metadata from traits + extra
         const metadata = {
-            expected_traits: sample.expected_traits,
+            evaluation_criteria: sample.evaluation_criteria || sample.expected_traits,
+            critical_dimensions: sample.critical_dimensions,
+            external_id: sample.id, // Preserve original ID in metadata
             ...sample.metadata
         };
 
-        const testCase = await tx.testCase.upsert({
-            where: { id: sample.id || 'undefined-id-fallback' }, // If ID provided, use it. If not, create new (but upsert needs unique)
-            // Actually, prisma schema for TestCase has ID @default(uuid()). 
-            // If sample.id is provided, we treat it as the UUID? Or an external ID?
-            // The JSON sample says "id": "sample-001". This is not a UUID.
-            // We should store this external ID in metadata or make ID a string (it is string).
-            // But upsert requires a unique constraint. TestCase ID is PK.
-            // "sample-001" might conflict across datasets if not careful, but usually it's scoped.
-            // Let's assume we create new if not found, or update. 
-            // BUT "id" in schema is PK.
-            // Let's verify schema: `id String @id @default(uuid())`
-            // If we want to use "sample-001" as ID, we can, but it must be unique globally in the table? 
-            // Ideally we should have `datasetId` + `externalId` unique.
-            // For now, let's rely on wiping and recreating for this "version".
-            // OR: Just create new ones if not exist.
-            
-            // SIMPLIFICATION: Delete all test cases for this dataset and recreate.
-            // This ensures strict sync with the JSON file.
-            create: {
+        // If sample.id is provided, we prefer it, but Prisma ID is UUID.
+        // We will generate new UUIDs for Prisma and store original ID in metadata.
+        
+        const testCase = await tx.testCase.create({
+            data: {
                 datasetId: dataset.id,
-                input: sample.input,
-                expectedOutput: sample.expected_output,
-                metadata: metadata,
-            },
-            update: {
                 input: sample.input,
                 expectedOutput: sample.expected_output,
                 metadata: metadata,
             }
         });
-        // Wait, upsert needs a unique key. 'id' is unique.
-        // If sample.id is NOT a UUID, we can't easily rely on it being the PK unless we enforce it.
-        // If the user provides "sample-001", and we use it as PK, it might clash.
-        // Better strategy: Delete all test cases for this dataset and insert new ones.
+        results.push(testCase);
       }
       
-      // Let's do the delete-insert strategy for safety and consistency with "versioned dataset" concept.
-      // If the user wants a new version, they change the dataset_id (e.g. "support_v1" -> "support_v2").
-      
-      await tx.testCase.deleteMany({
-          where: { datasetId: dataset.id }
-      });
-
-      await tx.testCase.createMany({
-          data: samples.map(s => ({
-              datasetId: dataset.id,
-              input: s.input,
-              expectedOutput: s.expected_output,
-              metadata: { expected_traits: s.expected_traits, ...s.metadata },
-              // We lose the stable ID "sample-001" if we don't store it.
-              // Let's store it in metadata.external_id
-          }))
-      });
-
-      return dataset;
+      return { dataset, testCases: results.length };
     });
   }
-
-  async getDataset(name) {
-    return prisma.dataset.findUnique({
-      where: { name },
-      include: { testCases: true },
-    });
+  
+  async getDataset(id) {
+      return await prisma.dataset.findUnique({
+          where: { id },
+          include: { testCases: true }
+      });
+  }
+  
+  async getDatasetByName(name) {
+      return await prisma.dataset.findUnique({
+          where: { name },
+          include: { testCases: true }
+      });
   }
 }
 
