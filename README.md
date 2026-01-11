@@ -59,7 +59,7 @@ graph TD
     end
     
     Queue --> DB
-    Router --> Providers[LLM Providers (OpenAI, Gemini, etc.)]
+    Router --> Providers["LLM Providers (OpenAI, Gemini, etc.)"]
 ```
 
 ### Request Lifecycle
