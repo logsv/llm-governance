@@ -6,7 +6,7 @@
 ![Node](https://img.shields.io/badge/node-%3E%3D20-green.svg)
 ![Status](https://img.shields.io/badge/status-beta-orange.svg)
 
-This library provides a drop-in SDK for Large Language Model (LLM) governance. Inspired by APM tools like New Relic, it wraps your existing LLM calls to automatically enforce security guardrails, track costs, and record audit logs—without routing traffic through a centralized gateway.
+This library provides a drop-in SDK for Large Language Model (LLM) governance. It wraps your existing LLM calls to automatically enforce security guardrails, track costs, and record audit logs directly within your application process.
 
 ## 🚀 Features
 
@@ -31,12 +31,12 @@ graph LR
     subgraph "Your Application"
         Code[User Code] --> SDK[LLM Governance SDK]
         SDK -->|Intercept| Guardrails[Guardrails Engine]
-        SDK -->|Async Log| Queue[Local Queue (Redis)]
+        SDK -->|Async Log| Queue["Local Queue (Redis)"]
     end
 
     subgraph "Background Infrastructure"
         Queue --> Worker[Worker Service]
-        Worker --> DB[(Postgres)]
+        Worker --> DB[("Postgres")]
         Worker --> Metrics[Prometheus]
     end
     
