@@ -6,23 +6,29 @@
 ![Node](https://img.shields.io/badge/node-%3E%3D20-green.svg)
 ![Status](https://img.shields.io/badge/status-beta-orange.svg)
 
-This library provides a drop-in SDK for Large Language Model (LLM) governance. It wraps your existing LLM calls to automatically enforce security guardrails, track costs, and record audit logs directly within your application process.
+This library provides a unique, drop-in SDK for Large Language Model (LLM) governance. Unlike traditional gateway-based solutions that introduce latency and single points of failure, this SDK instruments your application directly—similar to APM tools. It automatically enforces security guardrails, tracks costs, manages prompt versions, and runs evaluations against ground truth datasets.
 
 ## 🚀 Features
 
 ### 🛡️ Guardrails & Security
-- **In-Process Protection**: Validates inputs and outputs directly within your application process.
-- **PII Detection & Masking**: Automatically redacts sensitive data (Email, Phone, Credit Cards) from model responses.
-- **Secret Detection**: Blocks requests containing API keys or private tokens.
-- **Policy as Code**: Define rules in `YAML` files that live with your code or centrally.
+- **In-Process Protection**: Validates inputs and outputs directly within your application process with zero network latency.
+- **PII Detection & Masking**: Automatically redacts sensitive data (Email, Phone, Credit Cards) from model responses based on configurable policies.
+- **Secret Detection**: Blocks requests containing API keys or private tokens before they reach the model.
+- **Policy as Code**: Define rules in `YAML` files that live with your code.
+
+### 🧪 Evaluation & Prompt Engineering
+- **Prompt Versioning**: Manage and version prompts programmatically. Bind specific versions to environments (dev, test, prod).
+- **Automated Evaluation**: Run evaluations against "Golden Datasets" (Ground Truth) to verify model performance.
+- **AI Judges**: Built-in support for using LLMs as judges to score relevance, accuracy, and hallucination risk.
+- **Regression Testing**: Ensure new prompt versions don't break existing functionality before deployment.
 
 ### 👁️ Observability & Cost
-- **Zero-Latency Logging**: Telemetry is offloaded asynchronously to a local queue (BullMQ).
+- **Zero-Latency Logging**: Telemetry is offloaded asynchronously to a local queue (BullMQ), ensuring your user experience is never impacted by logging overhead.
 - **Distributed Tracing**: OpenTelemetry integration for full request visibility.
 - **Cost Attribution**: Real-time cost calculation per provider, model, and prompt.
 - **Resilient Persistence**: Dedicated Worker service handles database writes; your app stays up even if the DB is down.
 
-### 🏗️ Architecture
+## 🏗️ Architecture
 
 The SDK follows a "Producer-Consumer" model to ensure high performance and reliability:
 
@@ -70,7 +76,7 @@ npx prisma db push --schema=libs/common/prisma/schema.prisma
 The worker consumes logs from the queue and persists them to the database.
 
 ```bash
-npm start -w apps/worker
+npm run start:worker
 ```
 
 ### 4. Use the SDK in Your App
@@ -100,12 +106,54 @@ const response = await llm.observe({
 });
 ```
 
-### 5. Run the Demo
+### 5. Prompt Management & Evaluation
+Manage prompts and run evaluations separately from your main application flow.
 
-See the SDK in action with a simulated LLM provider:
+```javascript
+// 1. Create a Prompt and Add a Version
+const promptId = await llm.prompts.create({
+    name: "customer-service-bot",
+    description: "Main customer service agent"
+});
 
+await llm.prompts.addVersion({
+    promptId: promptId,
+    template: "You are a helpful assistant. Answer: {{user_input}}",
+    version: "1.0.0",
+    commitMessage: "Initial version"
+});
+
+// 2. Run an Evaluation
+// Compare the prompt against a Golden Dataset
+const results = await llm.evaluation.run({
+    promptId: promptId,
+    version: "1.0.0",
+    dataset: [
+        { 
+            input: "Hello", 
+            expected_traits: { tone: "friendly" } 
+        }
+    ],
+    config: {
+        provider: "openai",
+        model: "gpt-3.5-turbo"
+    }
+});
+
+console.log(`Evaluation Score: ${results.scores.overall}`);
+```
+
+### 6. Run the Demos
+
+**SDK Instrumentation Demo:**
 ```bash
 node examples/sdk-demo.js
+```
+
+**Evaluation Demo:**
+```bash
+# Runs with a Mock Provider to simulate LLM and Judge responses
+NODE_ENV=test node examples/eval-demo.js
 ```
 
 ## ⚙️ Configuration
