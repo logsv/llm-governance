@@ -82,8 +82,8 @@ export class JudgeService {
     }
   }
 
-  async evaluateWithJudges(input, output, traits) {
-    const configs = this.getConfigs();
+  async evaluateWithJudges(input, output, traits, options = {}) {
+    const configs = options.config || this.getConfigs();
     const scoringConfig = configLoader.getScoringConfig();
     const threshold = scoringConfig.thresholds?.disagreement_delta || 1.0;
 

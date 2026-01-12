@@ -13,8 +13,15 @@ const connection = {
 
 export class EvaluationRunner {
   constructor() {
-    this.queue = new Queue(EVAL_QUEUE_NAME, { connection });
+    this.queue = null;
     this.worker = null;
+  }
+
+  getQueue() {
+    if (!this.queue) {
+      this.queue = new Queue(EVAL_QUEUE_NAME, { connection });
+    }
+    return this.queue;
   }
 
   async startWorker() {
@@ -34,7 +41,7 @@ export class EvaluationRunner {
 
   async triggerEvaluation(runId) {
     // We assume the Run is already created in DB with 'pending' status
-    await this.queue.add('evaluate', { runId });
+    await this.getQueue().add('evaluate', { runId });
   }
 
   async processJob(job) {
@@ -203,7 +210,7 @@ export class EvaluationRunner {
   }
   
   async close() {
-      await this.queue.close();
+      if (this.queue) await this.queue.close();
   }
 }
 

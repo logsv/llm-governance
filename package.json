@@ -8,12 +8,12 @@
     "libs/*"
   ],
   "scripts": {
-    "start": "npm start -w apps/api",
+    "start:worker": "npm start -w apps/worker",
     "test": "npm test --workspaces",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
-    "boot": "docker-compose up -d && npm start"
+    "boot": "docker-compose up -d && npm run start:worker"
   },
   "devDependencies": {
     "eslint": "^8.57.1",
