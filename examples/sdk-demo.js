@@ -54,8 +54,7 @@ async function runDemo() {
         
         const response = await llm.observe({
             input: "What is your email?",
-            model: "gpt-4",
-            provider: "openai",
+            // model and provider are optional
             metadata: { user: "bob" }
         }, async () => {
             return await callOpenAI("What is your email?");
@@ -71,8 +70,7 @@ async function runDemo() {
         // Assuming default policy has secrets detection
         const response = await llm.observe({
             input: "Here is my API key: sk-1234567890abcdef1234567890abcdef",
-            model: "gpt-4",
-            provider: "openai"
+            // model and provider are optional
         }, async () => {
             return await callOpenAI("Here is my API key...");
         });

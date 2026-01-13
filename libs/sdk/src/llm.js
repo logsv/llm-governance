@@ -13,10 +13,10 @@ export function init(config) {
     if (config.policyPath) {
         try {
             const policy = loadPolicy(config.policyPath);
-            engine = new GuardrailsEngine(policy, validators);
-            console.log('LLM Governance SDK initialized with policy:', config.policyPath);
-        } catch (err) {
-            console.error('Failed to load guardrails policy:', err);
+      engine = new GuardrailsEngine(policy, validators);
+      console.log('LLM Guardrails SDK initialized with policy:', config.policyPath);
+    } catch (err) {
+      console.error('Failed to load guardrails policy:', err);
             if (config.strict) throw err;
         }
     } else if (config.policy) {

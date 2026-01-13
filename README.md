@@ -1,4 +1,4 @@
-# LLM Governance SDK
+# LLM Guardrails SDK
 
 > **Enterprise-grade in-process instrumentation for securing and observing LLM applications.**
 
@@ -6,7 +6,7 @@
 ![Node](https://img.shields.io/badge/node-%3E%3D20-green.svg)
 ![Status](https://img.shields.io/badge/status-beta-orange.svg)
 
-This library provides a unique, drop-in SDK for Large Language Model (LLM) governance. It instruments your application directly to automatically enforce security guardrails and observe guardrail performance without any external infrastructure dependencies.
+This library provides a unique, drop-in SDK for Large Language Model (LLM) guardrails. It instruments your application directly to automatically enforce security guardrails and observe guardrail performance without any external infrastructure dependencies.
 
 ## 🚀 Features
 
@@ -19,6 +19,30 @@ This library provides a unique, drop-in SDK for Large Language Model (LLM) gover
 ### 👁️ Guardrail Observability
 - **Real-time Logging**: Automatically logs guardrail checks (Pass/Fail/Violations) to the console for easy monitoring.
 - **Violation Tracking**: Detailed logs for blocked requests or masked content.
+
+## 🏗️ Architecture
+
+The SDK runs entirely within your application process, wrapping your LLM calls to enforce security policies and log activity.
+
+```mermaid
+graph TD
+    subgraph "Your Application (Node.js)"
+        UserCode[User Logic] -->|1. Call| SDK[LLM Guardrails SDK]
+        
+        SDK -->|2. Check Input| Guardrails[Guardrails Engine]
+        Guardrails --x|Block| SDK
+        Guardrails -->|Pass| SDK
+        
+        SDK -->|3. Execute| UserFunc[User Function / LLM Provider]
+        UserFunc -->|Return| SDK
+        
+        SDK -->|4. Check Output| Guardrails
+        Guardrails -->|Mask/Pass| SDK
+        
+        SDK -->|5. Log Result| Console[Console / Stdout]
+        SDK -->|6. Return| UserCode
+    end
+```
 
 ## 🛠️ Getting Started
 
@@ -46,8 +70,8 @@ llm.init({
 // 2. Wrap your LLM calls
 const response = await llm.observe({
     input: "User prompt",
-    model: "gpt-4",
-    provider: "openai",
+    model: "gpt-4", // optional
+    provider: "openai", // optional
     metadata: { user_id: "123" }
 }, async () => {
     // Your existing code (e.g., OpenAI SDK)
