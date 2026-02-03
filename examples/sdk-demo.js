@@ -1,6 +1,7 @@
 import llm from '../libs/sdk/index.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { ChatPromptTemplate } from '@langchain/core/prompts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const POLICY_PATH = path.resolve(__dirname, '../libs/guardrails/policies/default-enterprise-guardrails.yml');
@@ -32,13 +33,24 @@ async function runDemo() {
     // 2. Safe Request
     try {
         console.log('\n--- Test 1: Safe Request ---');
+        
+        const promptTemplate = ChatPromptTemplate.fromMessages([
+            ["system", "You are a helpful assistant."],
+            ["user", "{input}"]
+        ]);
+        
+        const input = "Tell me a joke";
+        const formattedMessages = await promptTemplate.formatMessages({ input });
+        // For this mock, we just convert messages to a string representation
+        const promptString = formattedMessages.map(m => `${m._getType()}: ${m.content}`).join('\n');
+
         const response = await llm.observe({
-            input: "Tell me a joke",
+            input: promptString,
             model: "gpt-4",
             provider: "openai",
             metadata: { user: "alice" }
         }, async () => {
-            return await callOpenAI("Tell me a joke");
+            return await callOpenAI(input); // Mock still needs the core intent, or we can pass the whole promptString
         });
         console.log('Response:', response);
     } catch (err) {
@@ -48,16 +60,22 @@ async function runDemo() {
     // 3. PII Request (Should be masked or flagged)
     try {
         console.log('\n--- Test 2: PII Leak Simulation ---');
-        // The mock provider returns an email. The output guardrail should catch it.
-        // We need to pass the output to the engine. 
-        // Note: The current SDK implementation runs output guardrails on the return value of the function.
         
+        const promptTemplate = ChatPromptTemplate.fromMessages([
+            ["system", "You are a helpful assistant that processes user data."],
+            ["user", "{question}"]
+        ]);
+        
+        const question = "What is your email?";
+        const formattedMessages = await promptTemplate.formatMessages({ question });
+        const promptString = formattedMessages.map(m => `${m._getType()}: ${m.content}`).join('\n');
+
         const response = await llm.observe({
-            input: "What is your email?",
+            input: promptString,
             // model and provider are optional
             metadata: { user: "bob" }
         }, async () => {
-            return await callOpenAI("What is your email?");
+            return await callOpenAI(question);
         });
         console.log('Response:', response);
     } catch (err) {
@@ -67,12 +85,21 @@ async function runDemo() {
     // 4. Input Guardrail (e.g. Prompt Injection or Secret)
     try {
         console.log('\n--- Test 3: Input Violation (Secret) ---');
-        // Assuming default policy has secrets detection
+        
+        const promptTemplate = ChatPromptTemplate.fromMessages([
+            ["system", "You are a secure assistant."],
+            ["user", "{user_input}"]
+        ]);
+
+        const userInput = "Here is my API key: sk-1234567890abcdef1234567890abcdef";
+        const formattedMessages = await promptTemplate.formatMessages({ user_input: userInput });
+        const promptString = formattedMessages.map(m => `${m._getType()}: ${m.content}`).join('\n');
+
         const response = await llm.observe({
-            input: "Here is my API key: sk-1234567890abcdef1234567890abcdef",
+            input: promptString,
             // model and provider are optional
         }, async () => {
-            return await callOpenAI("Here is my API key...");
+            return await callOpenAI(userInput);
         });
         console.log('Response:', response);
     } catch (err) {

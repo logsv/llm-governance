@@ -5,6 +5,9 @@ import { promptInjectionValidator } from './prompt-injection.js';
 import { schemaValidator } from './schema.js';
 import { profanityValidator } from './profanity.js';
 import { toxicityValidator } from './toxicity.js';
+import { competitorsValidator } from './competitors.js';
+import { gibberishValidator } from './gibberish.js';
+import { externalUrlsValidator } from './external-urls.js';
 
 const noopValidator = {
     validate: async () => { /* allow */ }
@@ -17,13 +20,15 @@ export const validators = {
     prompt_injection: promptInjectionValidator,
     schema_validation: schemaValidator,
     profanity_filter: profanityValidator,
-    toxicity_detection: toxicityValidator, // Map to new validator
-    sensitive_content: toxicityValidator,  // Reuse for sensitive content for now
+    toxicity_detection: toxicityValidator,
+    sensitive_content: toxicityValidator,  
+    competitors_detection: competitorsValidator,
+    gibberish_detection: gibberishValidator,
+    external_urls: externalUrlsValidator,
     
-    // Missing implementations - mapped to noop for now to prevent errors
+    // Missing implementations - mapped to noop for now
     language_allowlist: noopValidator,
     tool_access: noopValidator,
-    external_urls: noopValidator,
     hallucination_detection: noopValidator,
     factuality_check: noopValidator,
 };

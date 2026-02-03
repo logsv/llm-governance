@@ -60,6 +60,20 @@ input:
     action: flag
     audit: true
 
+  competitors_detection:
+    enabled: true
+    competitors:
+      - "CompetitorX"
+      - "RivalCorp"
+    action: reject
+    error_code: COMPETITOR_MENTION
+
+  gibberish_detection:
+    enabled: true
+    threshold: 0.8
+    action: flag
+    audit: true
+
 # ============================================================
 # CONTEXT & TOOL USAGE GUARDRAILS
 # ============================================================
