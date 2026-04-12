@@ -3,114 +3,93 @@ import { GuardrailViolation, RetryRequest } from './errors.js';
 export class GuardrailsEngine {
   constructor(policy, validators) {
     this.policy = policy;
-    this.validators = validators; // Expected to be an object mapping policy keys to validator objects
+    this.validators = validators;
   }
 
   async executeInput({ input, context }) {
-    if (!this.policy.input) return { allowed: true };
+    return this.executeRules({
+      rules: this.policy.input,
+      payload: { input, context },
+      phase: 'input',
+    });
+  }
+
+  async executeContext({ input, context }) {
+    return this.executeRules({
+      rules: this.policy.context,
+      payload: { input, context },
+      phase: 'context',
+    });
+  }
+
+  async executeOutput({ output, context }) {
+    return this.executeRules({
+      rules: this.policy.output,
+      payload: { output, context },
+      phase: 'output',
+    });
+  }
+
+  async executeRules({ rules, payload, phase }) {
+    if (!rules) {
+      return {
+        allowed: true,
+        violations: [],
+        ...('output' in payload ? { output: payload.output } : {}),
+      };
+    }
 
     const violations = [];
-    
-    for (const [key, config] of Object.entries(this.policy.input)) {
-      if (!config.enabled) continue;
-      
-      // Map policy key (e.g. 'size_limits') to validator
+    let currentOutput = payload.output;
+
+    for (const [key, config] of Object.entries(rules)) {
+      if (!config?.enabled) continue;
+
       const validator = this.validators[key];
-      
       if (!validator) {
-        console.warn(`Validator not found for input guardrail: ${key}`);
-        // Fail closed if validator is missing? 
-        // For now, warn and continue, but typically fail closed would mean error.
+        console.warn(`Validator not found for ${phase} guardrail: ${key}`);
         continue;
       }
 
       try {
-        // Validators should throw GuardrailViolation on failure
-        await validator.validate({ 
-          input, 
-          config, 
-          context 
+        const result = await validator.validate({
+          ...payload,
+          output: currentOutput,
+          config,
         });
-      } catch (err) {
-        if (err instanceof GuardrailViolation) {
-           violations.push(err);
-           
-           // Handle action
-           const action = config.action || 'reject';
-           if (action === 'reject') {
-             // Stop immediately on reject
-             throw err;
-           }
-           // If 'flag' or 'mask', we continue but record violation
-           // Masking might need to update input, need to handle that.
-           if (action === 'mask' && err.metadata?.masked) {
-               // Update input if the validator returns a masked version in metadata or we need a standard way
-               // Let's assume validator handles masking and returns/throws appropriately.
-               // Actually, if it's masking, it shouldn't be an error thrown, it should be a success with modification.
-               // But the current pattern suggests validate() returns void or throws.
-               // Let's adjust: validate returns { valid, modifiedInput } or throws.
-           }
-        } else {
-            // Unexpected error
-            throw err;
-        }
-      }
-    }
-    
-    return { allowed: true, violations };
-  }
 
-  async executeOutput({ output, context }) {
-    if (!this.policy.output) return { allowed: true };
-    
-    const violations = [];
-    let currentOutput = output;
+        if (phase === 'output' && result) {
+          if (result.output) {
+            currentOutput = result.output;
+          } else if (result.sanitized) {
+            currentOutput = result.sanitized;
+          }
 
-    for (const [key, config] of Object.entries(this.policy.output)) {
-      if (!config.enabled) continue;
-
-      const validator = this.validators[key];
-      if (!validator) {
-         console.warn(`Validator not found for output guardrail: ${key}`);
-         continue;
-      }
-
-      try {
-        const result = await validator.validate({ 
-          output: currentOutput, 
-          config, 
-          context 
-        });
-        
-        if (result) {
-            if (result.output) {
-                currentOutput = result.output;
-            } else if (result.sanitized) {
-                currentOutput = result.sanitized;
-            }
-            
-            if (result.violation) {
-                violations.push(new GuardrailViolation(result.violation.message, result.violation));
-            }
+          if (result.violation) {
+            violations.push(new GuardrailViolation(result.violation.message, result.violation));
+          }
         }
       } catch (err) {
-        if (err instanceof GuardrailViolation) {
-            violations.push(err);
-            const action = config.action || 'reject';
-            if (action === 'reject') {
-                throw err;
-            }
-            if (action === 'retry') {
-                throw new RetryRequest('Guardrail requested retry', {
-                    guardrail: key
-                });
-            }
-        } else {
-            throw err;
+        if (!(err instanceof GuardrailViolation)) {
+          throw err;
+        }
+
+        violations.push(err);
+        const action = config.action || config.action_on_violation || 'reject';
+
+        if (action === 'reject') {
+          throw err;
+        }
+        if (action === 'retry' && phase === 'output') {
+          throw new RetryRequest('Guardrail requested retry', { guardrail: key });
         }
       }
     }
 
-    return { allowed: true, violations, output: currentOutput };
+    const response = { allowed: true, violations };
+    if (phase === 'output') {
+      response.output = currentOutput;
+    }
+    return response;
   }
 }
