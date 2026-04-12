@@ -15,6 +15,9 @@ This library provides a unique, drop-in SDK for Large Language Model (LLM) guard
 - **PII Detection & Masking**: Automatically redacts sensitive data (Email, Phone, Credit Cards) from model responses based on configurable policies.
 - **Secret Detection**: Blocks requests containing API keys or private tokens before they reach the model.
 - **Toxicity Detection**: Filters harmful content using local models (BERT) or OpenAI Moderation API.
+- **Language Allowlist Enforcement**: Restricts prompts/responses to approved languages for locale or policy compliance.
+- **Tool Access Guardrails**: Blocks disallowed tool usage via context-phase validation before model execution.
+- **Hallucination Signal Detection**: Flags unsupported “factual authority” claims when citation/source signals are missing.
 - **Schema Validation & Repair**: Ensures outputs match JSON schemas and automatically repairs malformed JSON.
 - **Policy as Code**: Define rules in `YAML` files that live with your code.
 
@@ -28,7 +31,10 @@ This library provides a unique, drop-in SDK for Large Language Model (LLM) guard
 
 ## 🏗️ Architecture
 
-The SDK runs entirely within your application process, wrapping your LLM calls to enforce security policies and log activity.
+The SDK runs entirely within your application process, wrapping your LLM calls to enforce security policies and log activity across **three phases**:
+1. **Input** guardrails before provider invocation.
+2. **Context** guardrails (e.g., requested tools, metadata controls) before provider invocation.
+3. **Output** guardrails after the provider responds.
 
 ```mermaid
 graph TD
@@ -36,6 +42,10 @@ graph TD
         UserCode[User Logic] -->|1. Call| SDK[LLM Guardrails SDK]
         
         SDK -->|2. Check Input| Guardrails[Guardrails Engine]
+        Guardrails --x|Block| SDK
+        Guardrails -->|Pass| SDK
+
+        SDK -->|2b. Check Context| Guardrails
         Guardrails --x|Block| SDK
         Guardrails -->|Pass| SDK
         
@@ -100,7 +110,24 @@ input:
     enabled: true
     action: reject
 
+context:
+  tool_access:
+    enabled: true
+    action: reject
+    allowed_tools:
+      - web_search
+      - calculator
+
 output:
+  language_allowlist:
+    enabled: true
+    action: reject
+    allowed_languages: [en]
+
+  hallucination_detection:
+    enabled: true
+    action: flag
+
   pii_detection:
     enabled: true
     categories: [email, phone]
@@ -116,6 +143,15 @@ output:
     enabled: true
     action: retry # Automatically retry if schema validation fails
 ```
+
+## 🧭 Suggested Next Enhancements
+
+If you want to continue evolving the guardrails stack, these are high-impact additions:
+
+- **Implement `factuality_check`** as a non-noop validator with retrieval/citation-aware scoring.
+- **Add `usage` enforcement** (`cost_guardrails`, `rate_limits`) at runtime, not just policy definition.
+- **Add domain compliance packs** (e.g., finance/healthcare) with claim constraints and safe response templates.
+- **Expand citation policy modes** (e.g., `required_for_claims`, `required_for_numbers`, `always`) for lower false positives.
 
 ## 🤝 Contributing
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
