@@ -10,6 +10,7 @@ import { gibberishValidator } from './gibberish.js';
 import { externalUrlsValidator } from './external-urls.js';
 import { languageAllowlistValidator } from './language-allowlist.js';
 import { toolAccessValidator } from './tool-access.js';
+import { hallucinationValidator } from './hallucination.js';
 
 const noopValidator = {
   validate: async () => {
@@ -32,6 +33,6 @@ export const validators = {
 
   language_allowlist: languageAllowlistValidator,
   tool_access: toolAccessValidator,
-  hallucination_detection: noopValidator,
+  hallucination_detection: hallucinationValidator,
   factuality_check: noopValidator,
 };

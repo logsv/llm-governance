@@ -5,6 +5,7 @@ import { gibberishValidator } from '../src/validators/gibberish.js';
 import { externalUrlsValidator } from '../src/validators/external-urls.js';
 import { languageAllowlistValidator } from '../src/validators/language-allowlist.js';
 import { toolAccessValidator } from '../src/validators/tool-access.js';
+import { hallucinationValidator } from '../src/validators/hallucination.js';
 
 describe('New Validators', () => {
   describe('Competitors Validator', () => {
@@ -119,6 +120,31 @@ describe('New Validators', () => {
       await languageAllowlistValidator.validate({
         input: 'This is a valid English sentence.',
         config: { allowed_languages: ['en'] },
+      });
+    });
+  });
+
+  describe('Hallucination Validator', () => {
+    it('should flag ungrounded factual framing without citation', async () => {
+      await assert.rejects(
+        async () => {
+          await hallucinationValidator.validate({
+            output: 'Studies show this treatment works for 95% of patients.',
+            config: { strategy: 'heuristic' },
+          });
+        },
+        (err) => {
+          assert.strictEqual(err.name, 'GuardrailViolation');
+          assert.strictEqual(err.guardrail, 'hallucination_detection');
+          return true;
+        },
+      );
+    });
+
+    it('should allow claim framing when citation exists', async () => {
+      await hallucinationValidator.validate({
+        output: 'Studies show this works. Source: https://example.org/study',
+        config: { strategy: 'heuristic' },
       });
     });
   });
